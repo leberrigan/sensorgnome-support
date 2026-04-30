@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   build-deb:
-    uses: tve/sensorgnome-build/.github/workflows/generate-deb.yml@pimod
+    uses: leberrigan/sensorgnome-build/.github/workflows/generate-deb.yml@pimod
     with:
       command: ./gen-all-packages.sh
     secrets:
