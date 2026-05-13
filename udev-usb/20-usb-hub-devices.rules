@@ -108,6 +108,10 @@ SUBSYSTEM=="tty",ATTRS{idVendor}=="10c4",ATTRS{idProduct}=="ea60",ENV{MYDEVNAME}
 # CTT Motus Adapter v2 made with Adafruit Feather #3077 using std Vid:Pid (ugh!)
 SUBSYSTEM=="tty",ATTRS{idVendor}=="239a",ATTRS{idProduct}=="800c",ENV{MYDEVNAME}="CornellTagXCVR",GOTO="CornellTagXCVR"
 
+## detect DigiBabel UHF FSK Tag Receiver
+# DigiBabel uses FTDI FT230X (VID=0403, PID=6015) at 230400 baud
+SUBSYSTEM=="tty",ATTRS{idVendor}=="0403",ATTRS{idProduct}=="6015",ENV{MYDEVNAME}="DigiBabel",GOTO="DigiBabel"
+
 ## detect PL2303 serial port and assume it's a GPS (FIXME!)
 SUBSYSTEMS=="usb",ATTRS{idVendor}=="067b",ATTRS{idProduct}=="2303",KERNEL=="tty*",GOTO="pl2303gps"
 
@@ -129,6 +133,16 @@ IMPORT{program}="/bin/sh -c '(sleep 2; /bin/stty -F /dev/ttyUSB%n 115200 raw &)'
 IMPORT{program}="/opt/sensorgnome/udev-usb/get-usb-port.py %p"
 ENV{PORT_NUM}!="",SYMLINK+="sensorgnome/CornellTagXCVR.port=%E{PORT_NUM}.usbPath=%s{busnum}:%s{devnum}.port_path=%E{PORT_PATH}"
 ENV{PORT_NUM}!="",RUN{program}+="/usr/bin/logger -t sensorgnome Added CornellTagXCVR %E{PORT_PATH}->port %E{PORT_NUM}"
+GOTO="done"
+
+# DigiBabel UHF FSK Tag Receiver
+# line settings: 230400 baud, 8N1, no flow control
+LABEL="DigiBabel"
+ACTION!="add",GOTO="done"
+IMPORT{program}="/bin/sh -c '(sleep 2; /bin/stty -F /dev/ttyUSB%n 230400 raw -ixon -ixoff -crtscts &)'"
+IMPORT{program}="/opt/sensorgnome/udev-usb/get-usb-port.py %p"
+ENV{PORT_NUM}!="",SYMLINK+="sensorgnome/DigiBabel.port=%E{PORT_NUM}.usbPath=%s{busnum}:%s{devnum}.port_path=%E{PORT_PATH}"
+ENV{PORT_NUM}!="",RUN{program}+="/usr/bin/logger -t sensorgnome Added DigiBabel %E{PORT_PATH}->port %E{PORT_NUM}"
 GOTO="done"
 
 # pl2303gps serial port: add a link indicating which port the device is in
