@@ -101,7 +101,7 @@ SUBSYSTEMS=="usb",ATTRS{idVendor}=="04d8",ATTRS{idProduct}=="fb56",ENV{MYDEVNAME
 SUBSYSTEMS=="usb",ATTRS{idVendor}=="04d8",ATTRS{idProduct}=="fb31",ENV{MYDEVNAME}="funcubeProPlus",GOTO="usbaudio"
 
 ## detect Cornell tag XCVR / CTT LifeTag MOTUS Adapter
-SUBSYSTEM=="tty",ATTRS{idVendor}=="0403",ATTRS{idProduct}=="6001",ENV{MYDEVNAME}="CornellTagXCVR",GOTO="CornellTagXCVR"
+# SUBSYSTEM=="tty",ATTRS{idVendor}=="0403",ATTRS{idProduct}=="6001",ENV{MYDEVNAME}="CornellTagXCVR",GOTO="CornellTagXCVR"
 SUBSYSTEM=="tty",ATTRS{idVendor}=="0403",ATTRS{idProduct}=="6010",ENV{MYDEVNAME}="CornellTagXCVR",GOTO="CornellTagXCVR"
 # CTT Motus Adapter v1 with integrated CP2102 serial adapter and std Vid:Pid (ugh!)
 SUBSYSTEM=="tty",ATTRS{idVendor}=="10c4",ATTRS{idProduct}=="ea60",ENV{MYDEVNAME}="CornellTagXCVR",GOTO="CornellTagXCVR"
