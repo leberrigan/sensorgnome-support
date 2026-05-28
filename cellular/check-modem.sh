@@ -35,6 +35,13 @@ iptype=$(jq -r '.["ip-type"]' <<<$config)
 roaming=$(jq -r '.["allow-roaming"]' <<<$config)
 [[ -z $iptype ]] && iptype=ipv4v6
 
+# Load operator preference (/etc/modem-operator.conf, OPERATOR=30210 or OPERATOR=auto)
+operator_pref=auto
+if [[ -f /etc/modem-operator.conf ]]; then
+    source /etc/modem-operator.conf
+    operator_pref="${OPERATOR:-auto}"
+fi
+
 # we could iterate through all modems, but for now we only do the last (see last() in jq expr)
 eval $(mmcli -L -J | jq -j '.["modem-list"] | last | "modem=\(@sh)"')
 if [[ "$modem" == null ]]; then
@@ -111,6 +118,8 @@ if [[ -n "$modem" ]] && [[ -z "$apn" ]]; then
     fi    
 fi
 
+imsi_ok=0
+imsi_cycles=0
 count=0 # iteration count, if > 0 we're reconnecting
 while [[ -n "$modem" ]]; do
     m=$(basename $modem)
@@ -225,6 +234,27 @@ while [[ -n "$modem" ]]; do
         sleep 2
     fi
 
+    # Check IMSI for multi-IMSI SIMs; cycle RF if Jersey Telecom IMSI (23450x) is active
+    if [[ $imsi_ok -eq 0 ]] && [[ "$state" != disabled ]] && [[ "$state" != unknown ]]; then
+        imsi=$(mmcli -m $m --command="AT+CIMI" 2>/dev/null | grep -oE '[0-9]{10,}' | head -1)
+        if [[ "$imsi" == 23450* ]]; then
+            imsi_cycles=$((imsi_cycles + 1))
+            if [[ $imsi_cycles -le 3 ]]; then
+                echo "Jersey Telecom IMSI ($imsi) detected, cycling RF ($imsi_cycles/3)"
+                mmcli -m $m --command="AT+CFUN=0"
+                sleep 5
+                mmcli -m $m --command="AT+CFUN=1"
+                sleep 10
+                continue
+            else
+                echo "Jersey Telecom IMSI persists after $imsi_cycles RF cycles, proceeding anyway"
+            fi
+        else
+            [[ -n "$imsi" ]] && echo "IMSI: $imsi"
+        fi
+        imsi_ok=1
+    fi
+
     #
     if [[ $count == 1 ]]; then
         mmcli -m $m --3gpp-set-initial-eps-bearer-settings="apn=$apn,ip-type=$iptype,allow-roaming=$roaming"
@@ -235,6 +265,11 @@ while [[ -n "$modem" ]]; do
     # Make a connection attempt
     date
     if [[ $count -gt 1 ]] && [[ $state != connected ]] && [[ $state != registered ]]; then
+        if [[ "$operator_pref" != "auto" ]]; then
+            echo "#$count: Registering with configured operator $operator_pref"
+            mmcli -m $m --timeout=120 --3gpp-register-in-operator=$operator_pref
+            continue
+        fi
         if [[ ${#operators[*]} == 0 ]]; then
             echo "#$count: Performing a scan"
             get_scan
@@ -244,8 +279,6 @@ while [[ -n "$modem" ]]; do
             oper="${operators[$ix]}"
             echo "#$count: Registering with operator $oper"
             mmcli -m $m --timeout=120 --3gpp-register-in-operator=$oper
-            # err=$(mmcli -m $m --timeout=120 --3gpp-register-in-operator=$oper 2>&1)
-            # echo "Got: <<$err>>"
             continue
         fi
     fi
