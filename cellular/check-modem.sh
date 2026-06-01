@@ -120,7 +120,7 @@ if [[ -n "$modem" ]]; then
             apn=super
             iptype=ipv4v6
             roaming=yes
-            echo '{"apn":"super","ip-type":"ipv4v6","allow-roaming":"yes"}' >/etc/sensorgnome/cellular.json
+            echo '{"apn":"super","ip-type":"ipv4v6","allow-roaming":"yes","bad-imsi-prefixes":["23450"]}' >/etc/sensorgnome/cellular.json
         fi
     fi
 fi
