@@ -11,6 +11,10 @@
 
 [[ "$1" == "-r" ]] && reconfigure=1  # reconfiguring
 
+# Prevent concurrent runs (timer may fire while a previous instance is still connecting)
+exec 9>/var/lock/check-modem.lock
+flock -n 9 || exit 0
+
 # Log this execution to a file
 exec 6>&1
 exec > >(tee /tmp/check-modem-new.log) 2>&1
@@ -19,6 +23,7 @@ function finish {
     exec 1>&6
     trap - EXIT
     mv /tmp/check-modem-new.log /tmp/check-modem.log
+    systemctl start ModemManager 2>/dev/null || true  # no-op if already running; restores MM if we stopped it
     exit ${1:-1}
 }
 trap finish EXIT
@@ -27,7 +32,7 @@ trap finish EXIT
 if [[ -f /etc/sensorgnome/cellular.json ]]; then
     config=$(cat /etc/sensorgnome/cellular.json)
 else
-    echo '{"apn":"changeme","ip-type":"ipv4v6","allow-roaming":"yes"}' >/etc/sensorgnome/cellular.json
+    echo '{"apn":"changeme","ip-type":"ipv4v6","allow-roaming":"yes","bad-imsi-prefixes":["23450"]}' >/etc/sensorgnome/cellular.json
     config=""
 fi
 apn=$(jq -r .apn <<<$config)
@@ -104,22 +109,93 @@ function get_scan {
 }
 
 # handle APN auto-detection for some SIM cards
-if [[ -n "$modem" ]] && [[ -z "$apn" ]]; then
-    # Pre-configured APNs...
+iccid=""
+if [[ -n "$modem" ]]; then
     sim=$(mmcli -J -m $modem | jq -r .modem.generic.sim)
     iccid=$(mmcli -m $modem -i $sim -K | grep 'iccid' | sed -e 's/.*: *//')
-    # Twilio / sixfab "super SIM"
-    if [[ $iccid == 8988307* ]] || [[ $iccid == 8988323* ]]; then
-        echo "Twilio super SIM detected, using APN=super"
-        apn=super
-        iptype=ipv4v6
-        roaming=yes
-        echo '{"apn":"super","ip-type":"ipv4v6","allow-roaming":"yes"}' >/etc/sensorgnome/cellular.json
-    fi    
+    if [[ -z "$apn" ]]; then
+        # Twilio / sixfab "super SIM"
+        if [[ $iccid == 8988307* ]] || [[ $iccid == 8988323* ]]; then
+            echo "Twilio super SIM detected, using APN=super"
+            apn=super
+            iptype=ipv4v6
+            roaming=yes
+            echo '{"apn":"super","ip-type":"ipv4v6","allow-roaming":"yes"}' >/etc/sensorgnome/cellular.json
+        fi
+    fi
 fi
 
-imsi_ok=0
-imsi_cycles=0
+# Determine which IMSI prefixes should trigger RF cycling to pick a different SIM profile.
+# Explicit config (bad-imsi-prefixes in cellular.json) takes priority.
+# Falls back to a per-SIM-type default: Sixfab multi-IMSI SIMs default to no prefixes —
+# operators deploying in regions where specific profiles fail should set this in cellular.json.
+# Example: '{"bad-imsi-prefixes":["23450"]}' skips Jersey Telecom profiles (use in Canada).
+bad_imsi_prefixes=()
+if jq -e '.["bad-imsi-prefixes"]' <<<$config &>/dev/null; then
+    mapfile -t bad_imsi_prefixes < <(jq -r '.["bad-imsi-prefixes"][]' <<<$config 2>/dev/null)
+fi
+
+# Ensure SIM Toolkit is enabled so the SIM applet can switch profiles on RF cycling.
+# IMSI check runs every boot (/run marker); STK check is one-time (/etc marker).
+stk_marker=/etc/sensorgnome/stk_enabled
+mkdir -p /run/check-modem
+imsi_marker=/run/check-modem/imsi_ok
+
+if [[ ! -f "$stk_marker" ]] || [[ ! -f "$imsi_marker" ]]; then
+    atcom_bin=$(command -v atcom 2>/dev/null)
+    [[ -z "$atcom_bin" ]] && atcom_bin=$(find /usr /opt -name atcom -type f 2>/dev/null | head -1)
+    if [[ -z "$atcom_bin" ]]; then
+        echo "atcom not found, skipping STK/IMSI check"
+    else
+        systemctl stop ModemManager
+        sleep 2
+
+        if [[ ! -f "$stk_marker" ]]; then
+            stk_resp=$("$atcom_bin" AT+QSTK? 2>&1)
+            echo "AT+QSTK? response: $stk_resp"
+            stk_val=$(echo "$stk_resp" | grep -oE '\+QSTK: [0-9]' | grep -oE '[0-9]$')
+            if [[ "$stk_val" == "0" ]]; then
+                echo "Enabling SIM Toolkit"
+                "$atcom_bin" "AT+QSTK=1,0,300"
+                sleep 1
+            else
+                echo "SIM Toolkit already enabled (val=$stk_val)"
+            fi
+            touch "$stk_marker"
+        fi
+
+        if [[ ${#bad_imsi_prefixes[@]} -gt 0 ]]; then
+            echo "Bad IMSI prefixes: ${bad_imsi_prefixes[*]}"
+            for attempt in $(seq 1 10); do
+                imsi=$("$atcom_bin" AT+CIMI 2>&1 | grep -oE '[0-9]{14,15}')
+                echo "IMSI attempt $attempt: ${imsi:-none}"
+                bad_match=""
+                for prefix in "${bad_imsi_prefixes[@]}"; do
+                    [[ "$imsi" == "${prefix}"* ]] && bad_match="$prefix" && break
+                done
+                if [[ -n "$imsi" ]] && [[ -z "$bad_match" ]]; then
+                    echo "Good IMSI: $imsi"
+                    touch "$imsi_marker"
+                    break
+                fi
+                echo "IMSI ${imsi:-none} matches bad prefix ${bad_match:-none}, cycling RF (AT+CFUN=0/1)"
+                "$atcom_bin" "AT+CFUN=0"
+                sleep 5
+                "$atcom_bin" "AT+CFUN=1"
+                sleep 20
+            done
+            [[ ! -f "$imsi_marker" ]] && echo "WARNING: failed to get acceptable IMSI after 10 attempts"
+        else
+            echo "No bad-imsi-prefixes configured, skipping IMSI cycling"
+            touch "$imsi_marker"
+        fi
+
+        systemctl start ModemManager
+        sleep 15
+        eval $(mmcli -L -J | jq -j '.["modem-list"] | last | "modem=\(@sh)"')
+    fi
+fi
+
 count=0 # iteration count, if > 0 we're reconnecting
 while [[ -n "$modem" ]]; do
     m=$(basename $modem)
@@ -232,27 +308,6 @@ while [[ -n "$modem" ]]; do
         echo "Enabling modem"
         mmcli -m $m -e
         sleep 2
-    fi
-
-    # Check IMSI for multi-IMSI SIMs; cycle RF if Jersey Telecom IMSI (23450x) is active
-    if [[ $imsi_ok -eq 0 ]] && [[ "$state" != disabled ]] && [[ "$state" != unknown ]]; then
-        imsi=$(mmcli -m $m --command="AT+CIMI" 2>/dev/null | grep -oE '[0-9]{10,}' | head -1)
-        if [[ "$imsi" == 23450* ]]; then
-            imsi_cycles=$((imsi_cycles + 1))
-            if [[ $imsi_cycles -le 3 ]]; then
-                echo "Jersey Telecom IMSI ($imsi) detected, cycling RF ($imsi_cycles/3)"
-                mmcli -m $m --command="AT+CFUN=0"
-                sleep 5
-                mmcli -m $m --command="AT+CFUN=1"
-                sleep 10
-                continue
-            else
-                echo "Jersey Telecom IMSI persists after $imsi_cycles RF cycles, proceeding anyway"
-            fi
-        else
-            [[ -n "$imsi" ]] && echo "IMSI: $imsi"
-        fi
-        imsi_ok=1
     fi
 
     #

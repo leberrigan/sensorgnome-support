@@ -33,3 +33,17 @@ In addition, sg-control queries mmcli directly to display the current modem stat
 - Sixfab HAT:
   - GPIO13 is DTR, pulse low to wake-up modem from deep sleep
   - GPIO26 controls power: pull high to turn power OFF
+
+- Lucas mods (2026):
+  - Checks cellular/config.json for bad IMSI prefixes, cycles it if it's in the list.
+  - Default list only includes Jersey ("23450")
+```
+sudo systemctl stop check-modem check-modem.timer
+sudo rm /etc/sensorgnome/stk_enabled
+sudo rm -f /run/check-modem/imsi_ok
+sudo mv ~/check-modem.sh /opt/sensorgnome/cellular
+sudo systemctl daemon-reload
+sudo systemctl start check-modem check-modem.timer
+journalctl -u check-modem -f
+
+```

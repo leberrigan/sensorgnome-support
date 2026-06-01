@@ -12,3 +12,4 @@ tunnel/
 burstfinder/bursts-tve.json
 burstfinder/encrypt-bursts.sh
 claud*
+.claud*
