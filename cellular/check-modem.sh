@@ -23,10 +23,15 @@ function finish {
     exec 1>&6
     trap - EXIT
     mv /tmp/check-modem-new.log /tmp/check-modem.log
+    rm -f /run/check-modem/busy
     systemctl start ModemManager 2>/dev/null || true  # no-op if already running; restores MM if we stopped it
     exit ${1:-1}
 }
 trap finish EXIT
+
+# Signal to sg-control that check-modem is running so it defers mmcli calls
+mkdir -p /run/check-modem
+touch /run/check-modem/busy
 
 # Load information from cellular config
 if [[ -f /etc/sensorgnome/cellular.json ]]; then
@@ -138,7 +143,6 @@ fi
 # Ensure SIM Toolkit is enabled so the SIM applet can switch profiles on RF cycling.
 # IMSI check runs every boot (/run marker); STK check is one-time (/etc marker).
 stk_marker=/etc/sensorgnome/stk_enabled
-mkdir -p /run/check-modem
 imsi_marker=/run/check-modem/imsi_ok
 
 if [[ ! -f "$stk_marker" ]] || [[ ! -f "$imsi_marker" ]]; then
