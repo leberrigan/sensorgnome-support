@@ -37,23 +37,23 @@ sync
 # /media/diskNportM, so ensure /media/SD_card is a symlink to /data
 [[ -e /media/SD_card ]] || ln -s /data /media/SD_card
 
-# mount and move specific files from /boot into /etc/sensorgnome, the reason for this is that
-# boot is a fat32 filesystem where the user can edit some config files before first boot
-echo "Moving data from /boot to /etc/sensorngome"
+# mount and move specific files from /boot/firmware into /etc/sensorgnome, the reason for this is that
+# boot/firmware is a fat32 filesystem where the user can edit some config files before first boot
+echo "Moving data from /boot/firmware to /etc/sensorngome"
 shopt -s nullglob
-if [[ -n $(echo /boot/*tag*.sqlite) ]]; then
-    mv /boot/*tag*.sqlite /etc/sensorgnome/SG_tag_database.sqlite
+if [[ -n $(echo /boot/firmware/*tag*.sqlite) ]]; then
+    mv /boot/firmware/*tag*.sqlite /etc/sensorgnome/SG_tag_database.sqlite
 fi
-if [[ -f /boot/usb-port-map.txt ]]; then
-    mv /boot/usb-port-map.txt /etc/sensorgnome/
+if [[ -f /boot/firmware/usb-port-map.txt ]]; then
+    mv /boot/firmware/usb-port-map.txt /etc/sensorgnome/
 fi
-if [[ -n $(echo /boot/*.pub) ]]; then
+if [[ -n $(echo /boot/firmware/*.pub) ]]; then
     username=`getent passwd 1000 | cut -d: -f1`
     mkdir -p "/home/${username}/.ssh"
-    cat /boot/*.pub >>"/home/${username}/.ssh/authorized_keys"
+    cat /boot/firmware/*.pub >>"/home/${username}/.ssh/authorized_keys"
     chown -R "${username}" "/home/${username}/.ssh"
     chmod 644 /home/${username}/.ssh/*
-    rm /boot/*.pub
+    rm /boot/firmware/*.pub
 fi
 
 # Detect any HAT with the ability to explicitly override for HATs that don't detect properly,
@@ -82,12 +82,12 @@ if [[ $(date +%Y) -lt 2020 ]]; then
     date -s 2020-01-01
 fi
 
-# Update /boot/SENSORGNOME.txt (FAT32 boot partition, readable by Windows)
+# Update /boot/firmware/SENSORGNOME.txt (FAT32 boot partition, readable by Windows)
 # - Same device: update the boot count on the last line
 # - New device:  freeze current section, append separator + new section
 # - First boot:  append device ID + boot count to the build header written by the pifile
 update_sg_card_id() {
-    local SGFILE=/boot/SENSORGNOME.txt
+    local SGFILE=/boot/firmware/SENSORGNOME.txt
     local DEVICE_ID; DEVICE_ID=$(cat /etc/sensorgnome/id)
     local BOOTCOUNT; BOOTCOUNT=$(cat /etc/sensorgnome/bootcount)
     local last_device=""
