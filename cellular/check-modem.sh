@@ -33,6 +33,10 @@ trap finish EXIT
 mkdir -p /run/check-modem
 touch /run/check-modem/busy
 
+# Log file recording every IMSI the SIM applet has presented; read by sg-control for the web UI
+IMSI_LOG=/var/lib/sensorgnome/imsi-log
+mkdir -p /var/lib/sensorgnome
+
 # Load information from cellular config
 if [[ -f /etc/sensorgnome/cellular.json ]]; then
     config=$(cat /etc/sensorgnome/cellular.json)
@@ -173,6 +177,7 @@ if [[ ! -f "$stk_marker" ]] || [[ ! -f "$imsi_marker" ]]; then
             for attempt in $(seq 1 10); do
                 imsi=$("$atcom_bin" AT+CIMI 2>&1 | grep -oE '[0-9]{14,15}')
                 echo "IMSI attempt $attempt: ${imsi:-none}"
+                [[ -n "$imsi" ]] && printf '%s\t%s\n' "$(date -u +%s)" "$imsi" >> "$IMSI_LOG"
                 bad_match=""
                 for prefix in "${bad_imsi_prefixes[@]}"; do
                     [[ "$imsi" == "${prefix}"* ]] && bad_match="$prefix" && break
@@ -190,7 +195,10 @@ if [[ ! -f "$stk_marker" ]] || [[ ! -f "$imsi_marker" ]]; then
             done
             [[ ! -f "$imsi_marker" ]] && echo "WARNING: failed to get acceptable IMSI after 10 attempts"
         else
-            echo "No bad-imsi-prefixes configured, skipping IMSI cycling"
+            echo "No bad-imsi-prefixes configured, logging current IMSI"
+            imsi=$("$atcom_bin" AT+CIMI 2>&1 | grep -oE '[0-9]{14,15}')
+            echo "Current IMSI: ${imsi:-unknown}"
+            [[ -n "$imsi" ]] && printf '%s\t%s\n' "$(date -u +%s)" "$imsi" >> "$IMSI_LOG"
             touch "$imsi_marker"
         fi
 
