@@ -81,3 +81,31 @@ if [[ $(date +%Y) -lt 2020 ]]; then
     echo "Setting date to 2020-01-01"
     date -s 2020-01-01
 fi
+
+# Update /boot/SENSORGNOME.txt (FAT32 boot partition, readable by Windows)
+# - Same device: update the boot count on the last line
+# - New device:  freeze current section, append separator + new section
+# - First boot:  append device ID + boot count to the build header written by the pifile
+update_sg_card_id() {
+    local SGFILE=/boot/SENSORGNOME.txt
+    local DEVICE_ID; DEVICE_ID=$(cat /etc/sensorgnome/id)
+    local BOOTCOUNT; BOOTCOUNT=$(cat /etc/sensorgnome/bootcount)
+    local last_device=""
+    [[ -f "$SGFILE" ]] && last_device=$(awk '/^SG-/{d=$0} END{print d}' "$SGFILE")
+
+    if [[ "$last_device" == "$DEVICE_ID" ]]; then
+        # Same device: replace the last line with updated boot count
+        { head -n -1 "$SGFILE"; echo "Boot $BOOTCOUNT"; } >"${SGFILE}.tmp" && mv "${SGFILE}.tmp" "$SGFILE"
+    elif [[ -z "$last_device" && -f "$SGFILE" ]]; then
+        # File exists with build header only (first boot after flash): append device lines
+        printf '%s\n%s\n' "$DEVICE_ID" "Boot $BOOTCOUNT" >>"$SGFILE"
+    else
+        # New device (or file missing): write separator + full new section
+        local VER; VER=$(cat /etc/sensorgnome/version 2>/dev/null || echo "unknown")
+        local BUILT; BUILT=$(date -u -d @$(cat /etc/sensorgnome/image-stamp) +"%Y-%m-%d" 2>/dev/null || echo "unknown")
+        printf '%s\n%s\n%s UTC\n%s\n%s\n' \
+            "---" "$VER" "$BUILT" "$DEVICE_ID" "Boot $BOOTCOUNT" >>"$SGFILE"
+    fi
+    echo "Updated SENSORGNOME.txt: device=$DEVICE_ID boot=$BOOTCOUNT"
+}
+update_sg_card_id || echo "Warning: could not update SENSORGNOME.txt"

@@ -52,3 +52,17 @@ egrep -q DNSMASQ_EXCEPT /etc/default/dnsmasq || echo DNSMASQ_EXCEPT=lo >> /etc/d
 
 # install dhcpcd customizations
 cp $SRC/etc-dhcpcd.conf /etc/dhcpcd.conf
+
+# Ensure wpa_supplicant-wlan0.conf (used by wpa_supplicant@wlan0.service) has update_config=1.
+# raspi-imager and other tools create this file without update_config=1, which causes
+# wpa_cli save_config to return FAIL.
+WPA_CONF=/etc/wpa_supplicant/wpa_supplicant-wlan0.conf
+if [ ! -f "$WPA_CONF" ]; then
+    cp $SRC/etc-wpa_supplicant.conf "$WPA_CONF"
+elif ! grep -q "^update_config=1" "$WPA_CONF"; then
+    # Add update_config=1 after the ctrl_interface line, preserving existing credentials
+    sed -i '/^ctrl_interface/a update_config=1' "$WPA_CONF"
+fi
+
+# Restart wpa_supplicant@wlan0 so it takes ownership now that dhcpcd no longer hooks in
+systemctl restart wpa_supplicant@wlan0.service 2>/dev/null || true
