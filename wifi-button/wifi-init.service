@@ -1,10 +1,10 @@
 [Unit]
 Description=Init wifi
-# wpa-supplicant is required because we talk to it
-# dhcpcd is required because it starts wpa_supplicant for the wlan interface
-Requires=sg-boot.service wpa_supplicant.service dhcpcd.service
+# wpa_supplicant@wlan0 is required because we talk to it via wpa_cli
+# dhcpcd is required for IP address assignment on wlan0
+Requires=sg-boot.service wpa_supplicant@wlan0.service dhcpcd.service
 # start after set-wlan.service, which is created by raspi-imager
-After=sg-boot.service wpa_supplicant.service dhcpcd.service set-wlan.service
+After=sg-boot.service wpa_supplicant@wlan0.service dhcpcd.service set-wlan.service
 
 [Service]
 Type=oneshot
