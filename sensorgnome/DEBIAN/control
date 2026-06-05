@@ -8,7 +8,8 @@ Depends: fcd, find-tags-unifile, vamp-alsa-host,
     vamp-plugins (>= 2024.116), sensorgnome-librtlsdr (>= 2024.156),
     sg-boot, sg-gps-clock, sg-udev-usb, sg-web-portal, sg-wifi-button,
     sg-control, sg-upgrader, sg-hub-agent, sg-cellular, sg-burstfinder,
-    ss1-display, rpiboot, enpi
+    ss1-display, rpiboot, enpi,
+    sensorgnome-gnuradio
 Homepage: https://github.com/tve/sensorgnome-support/sensorgnome
 Maintainer: TvE (tvoneicken@gmail.com)
 Description: Sensorgnome software system 
