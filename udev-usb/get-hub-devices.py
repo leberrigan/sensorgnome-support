@@ -30,6 +30,8 @@ for dev in dev_list:
                 out[port]["frequency"] = "?"
         elif re.match(r'rtlsdr.*', name):
             out[port]["frequency"] = "?"
+        elif re.match(r'airspy.*', name):
+            out[port]["frequency"] = "?"
         elif re.match(r'usbAudio', name):
             out[port]["type"] = name
             with open(f"/proc/asound/card{attr['alsa_dev']}/stream0", "r") as f:

@@ -118,6 +118,10 @@ SUBSYSTEMS=="usb",ATTRS{idVendor}=="067b",ATTRS{idProduct}=="2303",KERNEL=="tty*
 ## detect sensorgnome PPSGPS (with our own custom local VID/PID)
 SUBSYSTEMS=="usb",ATTRS{idVendor}=="bd09",ATTRS{idProduct}=="0001",GOTO="sg_ppsgps"
 
+## detect airspy
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="60a1", ENV{MYDEVNAME}="airspyMini", GOTO="AirSpyMini"
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="03eb", ATTRS{idProduct}=="800c", ENV{MYDEVNAME}="airspyHF", GOTO="AirSpyHF"
+
 ## any other sound device is assumed to be USB audio
 SUBSYSTEMS=="sound",ENV{MYDEVNAME}="usbAudio",GOTO="usbaudio"
 
@@ -167,6 +171,38 @@ IMPORT{program}="/opt/sensorgnome/udev-usb/get-usb-port.py %p"
 ACTION!="add",GOTO="done"
 ENV{PORT_NUM}!="",SYMLINK+="sensorgnome/gps.port=%E{PORT_NUM}.pps=1.port_path=%E{PORT_PATH}"
 ENV{PORT_NUM}!="",RUN{program}+="/usr/bin/logger -t sensorgnome Added GPS %E{PORT_PATH}->port %E{PORT_NUM}"
+GOTO="done"
+
+# AirSpy Mini
+LABEL="AirSpyMini"
+RUN{program}+="/usr/bin/logger -t sensorgnome DBG AirSpy"
+# Can't just use 'add' action, symlink gets removed due to subseq bind, but there's no bind
+# at boot time on a fast rpi4, so need both !?
+ACTION=="add",GOTO="AirSpyMini2"
+ACTION=="bind",GOTO="AirSpyMini2"
+GOTO="done"
+
+LABEL="AirSpyMini2"
+RUN{program}+="/usr/bin/logger -t sensorgnome DBG add/bind airspy %p %k %s{idVendor}:%s{idProduct}"
+IMPORT{program}="/opt/sensorgnome/udev-usb/get-usb-port.py %p"
+ENV{PORT_NUM}!="",SYMLINK+="sensorgnome/airspy.port=%E{PORT_NUM}.usbPath=%s{busnum}:%s{devnum}.port_path=%E{PORT_PATH}.vidpid=%s{idVendor}:%s{idProduct}.mfg=%s{manufacturer}.prod=%s{product}"
+ENV{PORT_NUM}!="",RUN{program}+="/usr/bin/logger -t sensorgnome Added airspy %E{PORT_PATH}->port %E{PORT_NUM}"
+GOTO="done"
+
+# AirSpy HF+ Discovery
+LABEL="AirSpyHF"
+RUN{program}+="/usr/bin/logger -t sensorgnome DBG AirSpyHF"
+# Can't just use 'add' action, symlink gets removed due to subseq bind, but there's no bind
+# at boot time on a fast rpi4, so need both !?
+ACTION=="add",GOTO="AirSpyHF2"
+ACTION=="bind",GOTO="AirSpyHF2"
+GOTO="done"
+
+LABEL="AirSpyHF2"
+RUN{program}+="/usr/bin/logger -t sensorgnome DBG add/bind airspyhf %p %k %s{idVendor}:%s{idProduct}"
+IMPORT{program}="/opt/sensorgnome/udev-usb/get-usb-port.py %p"
+ENV{PORT_NUM}!="",SYMLINK+="sensorgnome/airspyhf.port=%E{PORT_NUM}.usbPath=%s{busnum}:%s{devnum}.port_path=%E{PORT_PATH}.vidpid=%s{idVendor}:%s{idProduct}.mfg=%s{manufacturer}.prod=%s{product}"
+ENV{PORT_NUM}!="",RUN{program}+="/usr/bin/logger -t sensorgnome Added airspyhf %E{PORT_PATH}->port %E{PORT_NUM}"
 GOTO="done"
 
 # any usb audio device
