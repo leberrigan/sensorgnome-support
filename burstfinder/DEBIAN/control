@@ -7,5 +7,5 @@ Essential: no
 Depends: python3, python3-numpy, python3-yaml
 Homepage: https://github.com/sensorgnome-support
 Maintainer: TvE (tvoneicken@gmail.com)
-Description: Sensorgnome BurstFinder PY
-  Burstfinder aggregates Lotek p;ulses into tag bursts.
+Description: Sensorgnome BurstFinder
+  Burstfinder aggregates Lotek pulses into tag bursts.
