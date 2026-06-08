@@ -6,10 +6,9 @@ mkdir $DESTDIR
 DEST=$DESTDIR/opt/sensorgnome/burstfinder
 install -d $DEST
 install -m 644 bursts src/LICENSE $DEST
-sed <src/burstfinder.py >$DEST/burstfinder.py \
-    -e '/^logging/s/%(asctime)s - //' \
-    -e '/^\s*initialize_logging/s/i/#i/' \
-    -e '/LATEST_TIMESTAMP/s/30.*/30000/'
+BF_VERSION=1.0
+aws s3 cp s3://sensorgnome-982081078525-us-east-1-an/burstfinder/burstfinder_${BF_VERSION}_arm_linux $DEST/burstfinder
+chmod 755 $DEST/burstfinder
 
 # Boilerplate package generation
 cp -r DEBIAN $DESTDIR
