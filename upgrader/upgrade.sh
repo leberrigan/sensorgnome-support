@@ -8,7 +8,6 @@ if [[ "$#" == 0 ]]; then
     exit 1
 fi
 
-export 
 date
 set -x
 
@@ -23,9 +22,10 @@ fi
 #TERM=dumb systemd-run --scope --collect --pipe --description="sg-upgrade" $CMD
 TERM=dumb systemd-run --wait --pipe --collect --description="sg-upgrade" \
     -E DEBIAN_FRONTEND=noninteractive $CMD
-echo "Restarting sg-control (web server) in 4 seconds..."
-sleep 4
-systemctl daemon-reload
-systemctl restart sg-control.service
-sleep 2
 echo "_END_"
+echo "Scheduling sg-control restart in 4 seconds..."
+# Schedule the restart outside our cgroup so upgrade.sh can exit cleanly first.
+# upgrade.sh is in sg-control's systemd cgroup; a synchronous restart would kill this
+# script before it exits, causing machine.js to never see exit code 0.
+systemd-run --no-block --collect --description="sg-post-upgrade-restart" \
+    /bin/bash -c 'sleep 4; systemctl daemon-reload; systemctl restart sg-control.service'

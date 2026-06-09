@@ -36,5 +36,5 @@ if ! [[ -f /opt/sensorgnome/upgrader/has-double ]]; then
     TERM=dumb systemd-run --service-type=oneshot --description="sg-double-upgrade" \
         --no-block --collect \
         -E DEBIAN_FRONTEND=noninteractive \
-        /bin/bash -ex -c /opt/sensorgnome/upgrader/do-double.sh
+        /opt/sensorgnome/upgrader/do-double.sh
 fi
