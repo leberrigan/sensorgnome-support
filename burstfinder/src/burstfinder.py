@@ -426,6 +426,7 @@ def write_bursts(burst_buffer, pulse_window_start, f_burst, f_burstpulse):
 	bursts_to_write_agg = aggregate_bursts(bursts_to_write)
 	if len(bursts_to_write_agg) > 0:
 		f_burst.write(format_bursts(bursts_to_write_agg)) if f_burst else None
+		if f_burst: f_burst.flush()
 		f_burstpulse.write(format_burstpulses(bursts_to_write_agg)) if f_burstpulse else None
 	return bursts_to_keep
 
