@@ -20,12 +20,14 @@ exec 6>&1
 exec > >(tee /tmp/check-modem-new.log) 2>&1
 date
 function finish {
+    rc=$?               # preserve the exit code when invoked via the EXIT trap
+    [[ -n "$1" ]] && rc=$1
     exec 1>&6
     trap - EXIT
     mv /tmp/check-modem-new.log /tmp/check-modem.log
     rm -f /run/check-modem/busy
     systemctl start ModemManager 2>/dev/null || true  # no-op if already running; restores MM if we stopped it
-    exit ${1:-1}
+    exit $rc
 }
 trap finish EXIT
 
@@ -64,6 +66,7 @@ if [[ "$modem" == null ]]; then
 elif [[ -z "$modem" ]] && [[ $(mmcli -L 2>&1) == *find?the?ModemManager?process* ]]; then
     echo "ModemManager locked-up, restarting"
     systemctl restart ModemManager
+    systemctl start sg-mm-gps-init.service 2>/dev/null || true  # restart stops it via Requires=
     finish 1
 fi
 
@@ -203,6 +206,9 @@ if [[ ! -f "$stk_marker" ]] || [[ ! -f "$imsi_marker" ]]; then
         fi
 
         systemctl start ModemManager
+        # stopping MM above also stopped sg-mm-gps-init (Requires=); bring it back so
+        # modem GPS gets re-enabled (no-op if the MM Wants= drop-in already started it)
+        systemctl start sg-mm-gps-init.service 2>/dev/null || true
         sleep 15
         eval $(mmcli -L -J | jq -j '.["modem-list"] | last | "modem=\(@sh)"')
     fi

@@ -25,6 +25,9 @@ deb-systemd-helper enable sg-ada-gps-init.service
 deb-systemd-helper enable sg-mm-gps-init.service
 if systemctl is-active --quiet sg-mm-gps-init.service; then
   systemctl restart sg-mm-gps-init.service
+elif systemctl is-active --quiet ModemManager.service; then
+  # monitor may have been taken down by a ModemManager stop (check-modem STK/IMSI check)
+  systemctl start sg-mm-gps-init.service || true
 fi
 
 # We update chrony's config file, so restart it

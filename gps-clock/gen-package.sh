@@ -9,6 +9,8 @@ install -m 755 init-*.sh $DEST
 install -m 644 chrony.conf $DESTDIR/etc/chrony
 install -d $DESTDIR/etc/systemd/system/chrony.service.d
 install -m 644 chrony-override.conf $DESTDIR/etc/systemd/system/chrony.service.d/restart.conf
+install -d $DESTDIR/etc/systemd/system/ModemManager.service.d
+install -m 644 modemmanager-override.conf $DESTDIR/etc/systemd/system/ModemManager.service.d/sg-gps.conf
 install -m 644 *.service $DESTDIR/etc/systemd/system
 
 # Boilerplate package generation
